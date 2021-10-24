@@ -1,7 +1,7 @@
 package main
 
 import (
-	"bookstore/download"
+	"github.com/bookstore-go/download"
 	"fmt"
 	"os"
 	"strconv"

@@ -1,7 +1,7 @@
 package download
 
 import (
-	"bookstore/utils"
+	"github.com/bookstore-go/utils"
 	"fmt"
 	"net/url"
 	"path"
