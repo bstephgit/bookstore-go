@@ -1,4 +1,9 @@
+
 url="https://vps665513.ovh.net"
-workdir=~/temp/bookstore
+workdir="~/temp/bookstore"
+[Database]
+host="192.168.0.45"
+user="guest"
+password="aldu"
 
 

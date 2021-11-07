@@ -1,7 +1,7 @@
 package utils_test
 
 import (
-	"bookstore/utils"
+	"github.com/bookstore-go/utils"
 	"bytes"
 	"encoding/json"
 	"net/http"
