@@ -30,13 +30,15 @@ func (handler *myHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if req.URL.Path == "/" {
 		fmt.Printf("Got request %v\n", req.URL)
 
-		f, _ := os.Create("resp.html")
+		f, _ := os.Open("resp.html")
 		io.Copy(rw, f)
 		f.Close()
 
 	}
+	if req.URL.Path == "/token" {
+		handler.Ch <- req.URL.RawQuery
 
-	handler.Ch <- req.URL.RawQuery
+	}
 }
 
 func StartServer(ch chan<- string) {
