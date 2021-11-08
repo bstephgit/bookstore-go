@@ -58,7 +58,9 @@ func main() {
 		panic(err)
 	}
 
-	utils.TerminalLoop()
+	var goog GoogleClient
+	goog.Auth()
+	//console.TerminalLoop()
 
 	err = utils.DbClose()
 
