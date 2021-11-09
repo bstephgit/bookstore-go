@@ -34,6 +34,16 @@ type Book struct {
 	Description string
 }
 
+type BookDownload struct {
+	BookId     int
+	StorageId  int
+	FileSize   int
+	FileId     string
+	FileName   string
+	Vendor     string
+	VendorCode string
+}
+
 type Database struct {
 	Host     string
 	User     string
@@ -136,6 +146,29 @@ func GetBook(id int) (*Book, error) {
 		return book, nil
 	}
 	return nil, errors.New("Not Connected")
+}
+
+func GetDownloadInfo(bookid int) (*BookDownload, error) {
+	if DatabaseObj.Connected {
+
+		//query := fmt.Sprintf("SELECT BOOK_ID,STORE_ID,FILE_ID,FILE_SIZE,FILE_NAME,VENDOR,VENDOR_CODE FROM BOOKS_LINKS,FILE_STORE WHERE BOOK_ID=%d", bookid)
+		query := fmt.Sprintf("SELECT BOOK_ID,STORE_ID,FILE_ID,FILE_SIZE,FILE_NAME,VENDOR,VENDOR_CODE FROM BOOKS_LINKS, FILE_STORE FS WHERE BOOK_ID=%d AND FS.ID=STORE_ID", bookid)
+		row, err := DatabaseObj.DbObj.Query(query)
+
+		if err != nil {
+			return nil, err
+		}
+
+		if row.Next() {
+			book_dl := &BookDownload{}
+
+			row.Scan(&book_dl.BookId, &book_dl.StorageId, &book_dl.FileId, &book_dl.FileSize, &book_dl.FileName, &book_dl.Vendor, &book_dl.VendorCode)
+			return book_dl, nil
+		} else {
+			return nil, errors.New("Book download info not found")
+		}
+	}
+	return nil, errors.New("Not connected to DB")
 }
 
 func DbClose() error {

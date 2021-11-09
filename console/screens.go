@@ -3,6 +3,7 @@ package console
 import (
 	"strings"
 
+	"github.com/bookstore-go/download"
 	"github.com/bookstore-go/utils"
 	"github.com/rthornton128/goncurses"
 )
@@ -413,6 +414,10 @@ func (bookscr *BookScreen) OnKey(k goncurses.Key) {
 	switch k {
 	case 'q':
 		bookscr.Tty.EndRead()
+	case 'd':
+		dl := &DownloadScreen{}
+		dl.BookId = bookscr.BookId
+		bookscr.Tty.NewScreen(dl)
 	case goncurses.KEY_PAGEDOWN:
 		bookscr.Tty.ScrollScr(bookscr.Tty.Lines)
 	case goncurses.KEY_PAGEUP:
@@ -421,5 +426,49 @@ func (bookscr *BookScreen) OnKey(k goncurses.Key) {
 }
 
 type DownloadScreen struct {
-	Tty *Terminal
+	Tty    *Terminal
+	BookId int
+	BookDl *utils.BookDownload
+}
+
+func (ds *DownloadScreen) Init(tty *Terminal, ctx *ScreenContext) {
+	ds.Tty = tty
+	ds.BookDl, _ = utils.GetDownloadInfo(ds.BookId)
+	tty.ClearScreen()
+}
+
+func (ds *DownloadScreen) Run() {
+	ds.OnRefresh(0, 0)
+	ds.Tty.BeginRead()
+}
+
+func (ds *DownloadScreen) OnKey(key goncurses.Key) {
+	switch key {
+	case 'n':
+		ds.Tty.EndRead()
+	case 'y':
+		download.DownloadFile(ds.BookDl)
+	}
+}
+
+func (ds *DownloadScreen) OnScroll(y int) {
+	// nop
+}
+
+func (ds *DownloadScreen) OnRefresh(lines, cols int) {
+	ds.Tty.CursorAddress(0, 0)
+	ds.Tty.Printf("File:")
+	ds.Tty.CursorAddress(0, 30)
+	ds.Tty.Printf("%s", ds.BookDl.FileName)
+	ds.Tty.CursorAddress(1, 0)
+	ds.Tty.Printf("Size:")
+	ds.Tty.CursorAddress(1, 30)
+	ds.Tty.Printf("%d", ds.BookDl.FileSize)
+	ds.Tty.CursorAddress(2, 0)
+	ds.Tty.Printf("Storage vendor:")
+	ds.Tty.CursorAddress(2, 30)
+	ds.Tty.Printf("%s (%s)", ds.BookDl.Vendor, ds.BookDl.VendorCode)
+
+	ds.Tty.CursorAddress(4, 0)
+	ds.Tty.Println("Download book? Y/n")
 }

@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/BurntSushi/toml"
+	"github.com/bookstore-go/console"
 	"github.com/bookstore-go/utils"
 )
 
@@ -41,6 +42,8 @@ func main() {
 	}**/
 	//var url_img string
 
+	os.Setenv("LANG", "$LANG.UTF-8")
+
 	var conf config
 	md, err := toml.DecodeFile("config.toml", &conf)
 
@@ -52,36 +55,17 @@ func main() {
 
 	err = utils.DbConnect(conf.Database)
 
-	os.Setenv("LANG", "$LANG.UTF-8")
 	if err != nil {
 		log.Fatal("Cannot connect to database " + err.Error())
 		panic(err)
 	}
 
-	var goog GoogleClient
-	goog.Auth()
-	//console.TerminalLoop()
+	console.TerminalLoop()
 
 	err = utils.DbClose()
 
 	if err != nil {
 		log.Fatal("Error closing database " + err.Error())
 	}
-
-	/*for index := 1; index < len(os.Args); index += 1 {
-		var err error
-
-		_, err = strconv.Atoi(os.Args[index])
-
-		if err == nil {
-
-			//url_img = Base_url + "?bookid=" + os.Args[index]
-			//fmt.Printf("Page url => %s\n", url_img)
-			//download.DownloadImage(url_img)
-
-		} else {
-			fmt.Printf("Argument bad format:%s. Not a number", os.Args[index])
-		}
-	}*/
 
 }

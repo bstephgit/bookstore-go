@@ -1,4 +1,4 @@
-package main
+package download
 
 import (
 	"fmt"
@@ -7,22 +7,31 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/bookstore-go/utils"
 )
 
 type StorageClient interface {
-	Auth(url string)
-	OnCode(code int)
-	OnToken(token string)
+	Auth(url string) string
+	//OnCode(code int)
+	//OnToken(token string)
+	DownloadFile(fileId, file_name, token string)
 }
+
+var Clinets map[string]StorageClient
 
 type GoogleClient struct {
 	Connected bool
+	Token     string
 }
 
 type myHandler struct {
 	Ch chan<- string
+}
+
+func DownloadFile(book *utils.BookDownload) {
+
 }
 
 func (handler *myHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
@@ -36,7 +45,17 @@ func (handler *myHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 	}
 	if req.URL.Path == "/token" {
-		handler.Ch <- req.URL.RawQuery
+		splitted := strings.Split(req.URL.RawQuery, "&")
+		const access_token = "access_token"
+		var token string
+
+		for _, s := range splitted {
+			if s[:len(access_token)] == access_token {
+				token = strings.Split(s, "=")[1]
+			}
+		}
+
+		handler.Ch <- token
 
 	}
 }
@@ -52,7 +71,7 @@ func StartServer(ch chan<- string) {
 	}
 }
 
-func (goog *GoogleClient) Auth() {
+func (goog *GoogleClient) Auth() string {
 
 	const BaseUrl = "https://accounts.google.com/o/oauth2/v2/auth"
 	const ClientId = "76824108658-qopibc57hedf4k4he7rlateis2bkoigv.apps.googleusercontent.com"
@@ -76,7 +95,28 @@ func (goog *GoogleClient) Auth() {
 
 	ch := make(chan string)
 	go StartServer(ch)
-	s := <-ch
+	token := <-ch
 
-	fmt.Printf("response received %s\n", s)
+	fmt.Printf("token received %s\n", token)
+
+	return token
+}
+
+func (goog *GoogleClient) DownloadFile(fileId, file_name, token string) {
+
+	const URL = "https://www.googleapis.com/drive/v3/files/"
+	const SCOPE = "https://www.googleapis.com/auth/drive.readonly"
+
+	fileurl := URL + fileId
+
+	resp, err := http.Get(fileurl)
+
+	if err != nil {
+		fmt.Printf("%v\n", err)
+	}
+
+	out, _ := os.Create(file_name)
+
+	_, err = io.Copy(out, resp.Body)
+	out.Close()
 }
