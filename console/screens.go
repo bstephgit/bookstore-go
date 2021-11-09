@@ -429,12 +429,14 @@ type DownloadScreen struct {
 	Tty    *Terminal
 	BookId int
 	BookDl *utils.BookDownload
+	Done   bool
 }
 
 func (ds *DownloadScreen) Init(tty *Terminal, ctx *ScreenContext) {
 	ds.Tty = tty
 	ds.BookDl, _ = utils.GetDownloadInfo(ds.BookId)
 	tty.ClearScreen()
+	ds.Done = false
 }
 
 func (ds *DownloadScreen) Run() {
@@ -447,8 +449,20 @@ func (ds *DownloadScreen) OnKey(key goncurses.Key) {
 	case 'n':
 		ds.Tty.EndRead()
 	case 'y':
-		download.DownloadFile(ds.BookDl)
+		err := download.DownloadFile(ds.BookDl)
+		//ds.Tty.EndRead()
+		if err != nil {
+			ds.Tty.CursorAddress(7, 0)
+			ds.Tty.Printf("%v\n", err)
+		}
+		ds.Done = true
+		ds.Tty.Println("Press any key to return to book page")
+	default:
+		if ds.Done {
+			ds.Tty.EndRead()
+		}
 	}
+
 }
 
 func (ds *DownloadScreen) OnScroll(y int) {

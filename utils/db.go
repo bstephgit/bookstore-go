@@ -50,6 +50,13 @@ type Database struct {
 	Password string
 }
 
+type StorageVendor struct {
+	Id              int
+	VendorName      string
+	VendorCode      string
+	StorageCapacity int
+}
+
 var DatabaseObj Db
 
 func init() {
@@ -167,6 +174,24 @@ func GetDownloadInfo(bookid int) (*BookDownload, error) {
 		} else {
 			return nil, errors.New("Book download info not found")
 		}
+	}
+	return nil, errors.New("Not connected to DB")
+}
+
+func GetVendors() ([]*StorageVendor, error) {
+	if DatabaseObj.Connected {
+		sql := "SELECT ID,VENDOR,VENDOR_CODE,STORAGE_CAPACITY FROM FILE_STORE"
+		rows, err := DatabaseObj.DbObj.Query(sql)
+		if err != nil {
+			return nil, err
+		}
+		var vendors []*StorageVendor
+		for rows.Next() {
+			v := &StorageVendor{}
+			rows.Scan(&v.Id, &v.VendorName, &v.VendorCode, &v.StorageCapacity)
+			vendors = append(vendors, v)
+		}
+		return vendors, nil
 	}
 	return nil, errors.New("Not connected to DB")
 }

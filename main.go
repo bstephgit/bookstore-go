@@ -7,6 +7,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/bookstore-go/console"
+	"github.com/bookstore-go/download"
 	"github.com/bookstore-go/utils"
 )
 
@@ -59,6 +60,9 @@ func main() {
 		log.Fatal("Cannot connect to database " + err.Error())
 		panic(err)
 	}
+
+	// connect ot db to get file storage vendors
+	download.InitVendorsData()
 
 	console.TerminalLoop()
 
