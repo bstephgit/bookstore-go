@@ -1,12 +1,13 @@
 package utils_test
 
 import (
-	"github.com/bookstore-go/utils"
 	"bytes"
 	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/bookstore-go/utils"
 )
 
 //-------------------------------------------------------------------------------------
@@ -54,6 +55,10 @@ func (req *HttpRequestTest) Error() error {
 
 func (req *HttpRequestTest) Url() string {
 	return req.Request.Url_
+}
+
+func (req *HttpRequestTest) AddHeaders(headers map[string]string) {
+
 }
 
 const Test_Url string = "https://httpbin.org/get?param1=val1&param2=val2"
