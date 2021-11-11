@@ -37,12 +37,6 @@ var Base_url string = Base_url_folder + "home.php"
 
 func main() {
 
-	/**if len(os.Args) < 2 {
-		fmt.Printf("missing arguments: provide at least 1 number\n")
-		os.Exit(1)
-	}**/
-	//var url_img string
-
 	os.Setenv("LANG", "$LANG.UTF-8")
 
 	var conf config
@@ -61,7 +55,7 @@ func main() {
 		panic(err)
 	}
 
-	// connect ot db to get file storage vendors
+	// connect to db to get file storage vendors
 	download.InitVendorsData()
 
 	console.TerminalLoop()

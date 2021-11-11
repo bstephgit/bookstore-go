@@ -17,18 +17,19 @@ func NewTerminal() *Terminal {
 
 	goncurses.Init()
 
-	screen, err := goncurses.NewTerm(term_name, os.Stdout, os.Stdin)
-	if err != nil {
-		panic(err)
-	}
-
-	goncurses.StdScr().Keypad(true)
-	goncurses.StdScr().ScrollOk(true)
 	goncurses.CBreak(true)
 
-	term := Terminal{0, 0, screen, []*ScreenContext{}}
+	term := Terminal{0, 0, []*ScreenContext{}, nil}
 
 	term.Lines, term.Cols = GetScreenSize()
+
+	//win := goncurses.StdScr().Derived(term.Lines, term.Cols, 0, 0)
+	win, _ := goncurses.NewWindow(term.Lines, term.Cols, 0, 0)
+
+	win.Keypad(true)
+	win.ScrollOk(true)
+	term.Win = win
+
 	return &term
 
 }
@@ -48,13 +49,19 @@ type ScreenContext struct {
 type Terminal struct {
 	Cols        int
 	Lines       int
-	Screen      *goncurses.Screen
 	ScreenStack []*ScreenContext
+	Win         *goncurses.Window
+}
+
+func (t *Terminal) GetWindow() *goncurses.Window {
+	//return goncurses.StdScr()
+	return t.Win
 }
 
 func (t *Terminal) ClearScreen() {
-	goncurses.StdScr().Clear()
-	goncurses.StdScr().Refresh()
+	w := t.GetWindow()
+	w.Clear()
+	w.Refresh()
 }
 
 func GetScreenSize() (int, int) {
@@ -63,29 +70,33 @@ func GetScreenSize() (int, int) {
 	return y, x
 }
 func (t *Terminal) MoveCursorTo(ypos int, xpos int) {
-	goncurses.StdScr().Move(ypos, xpos)
-	goncurses.StdScr().Refresh()
+	w := t.GetWindow()
+	w.Move(ypos, xpos)
+	w.Refresh()
 }
 
 func (t *Terminal) PrintMessage(s string, p ...interface{}) {
-	y, x := goncurses.StdScr().CursorYX()
-	goncurses.StdScr().MovePrintf(y+1, 0, s, p...)
-	goncurses.StdScr().Move(y, x)
-	goncurses.StdScr().Refresh()
+	w := t.GetWindow()
+	y, x := w.CursorYX()
+	w.MovePrintf(y+1, 0, s, p...)
+	w.Move(y, x)
+	w.Refresh()
 }
 
 func (t *Terminal) Printf(s string, p ...interface{}) {
-	goncurses.StdScr().Printf(s, p...)
-	goncurses.StdScr().Refresh()
+	w := t.GetWindow()
+	w.Printf(s, p...)
+	w.Refresh()
 }
 
 func (t *Terminal) Println(s string) {
-	goncurses.StdScr().Println(s)
-	goncurses.StdScr().Refresh()
+	w := t.GetWindow()
+	w.Println(s)
+	w.Refresh()
 }
 
 func (t *Terminal) GetChar() goncurses.Key {
-	k := goncurses.StdScr().GetChar()
+	k := t.GetWindow().GetChar()
 	return k
 }
 
@@ -106,7 +117,7 @@ func (t *Terminal) ScrollScr(n int) {
 		}
 
 		n = ctx.Scroll - scroll
-		goncurses.StdScr().Scroll(n)
+		t.GetWindow().Scroll(n)
 		t.CurrentContext().CurrentScreen.OnScroll(n)
 	}
 }
@@ -117,12 +128,12 @@ func (t *Terminal) NewScreen(scr Screen) {
 		t.SaveCursorPos()
 	}
 	ctx := &ScreenContext{scr, 0, 1, 1, t.Lines, t.Cols, false, 0, 0}
-
+	w := t.GetWindow()
 	// add new context
 	t.ScreenStack = append(t.ScreenStack, ctx)
 	// init screen
 	scr.Init(t, ctx)
-	goncurses.StdScr().Resize(ctx.LogicLines*ctx.LineSize, t.Cols*ctx.ColSize)
+	w.Resize(ctx.LogicLines*ctx.LineSize, t.Cols*ctx.ColSize)
 	// run the screen
 	scr.Run()
 	t.ClearScreen()
@@ -132,7 +143,7 @@ func (t *Terminal) NewScreen(scr Screen) {
 	// restore previous context
 	ctx = t.CurrentContext()
 	if ctx != nil {
-		goncurses.StdScr().Resize(ctx.LogicLines*ctx.LineSize, t.Cols*ctx.ColSize)
+		w.Resize(ctx.LogicLines*ctx.LineSize, t.Cols*ctx.ColSize)
 		ctx.CurrentScreen.OnRefresh(0, 0)
 		t.ScrollScr(ctx.Scroll)
 		t.MoveCursorTo(ctx.CursorLine, ctx.CursorCol)
@@ -193,7 +204,7 @@ func (t *Terminal) MoveNextLine() {
 		t.MoveCursorTo(ctx.CursorLine*ctx.LineSize, ctx.CursorCol*ctx.ColSize)
 	} else if ctx.CursorLine+ctx.Scroll+1 < ctx.LogicLines {
 		ctx.Scroll += 1
-		goncurses.StdScr().Scroll(1)
+		t.GetWindow().Scroll(1)
 		ctx.CurrentScreen.OnScroll(1)
 	}
 
@@ -209,7 +220,7 @@ func (t *Terminal) MovePrevLine() {
 		t.MoveCursorTo(ctx.CursorLine*ctx.LineSize, ctx.CursorCol*ctx.ColSize)
 	} else if ctx.Scroll-1 > -1 {
 		ctx.Scroll -= 1
-		goncurses.StdScr().Scroll(-1)
+		t.GetWindow().Scroll(-1)
 		ctx.CurrentScreen.OnScroll(-1)
 	}
 }
@@ -236,7 +247,7 @@ func (t *Terminal) CursorAddress(line, col int) {
 }
 
 func (t *Terminal) SaveCursorPos() (int, int) {
-	y, x := goncurses.StdScr().CursorYX()
+	y, x := t.GetWindow().CursorYX()
 	ctx := t.CurrentContext()
 	ctx.CursorLine = y / ctx.LineSize
 	ctx.CursorCol = x / ctx.ColSize
@@ -247,5 +258,6 @@ func TerminalLoop() {
 
 	tty := NewTerminal()
 	tty.NewScreen(&MenuScreen{})
-	tty.Screen.End()
+	goncurses.CBreak(false)
+	goncurses.End()
 }
