@@ -40,9 +40,7 @@
         item = res.next()
       }
 
-      console.log(tokens);
-
-      
+      console.log(tokens);      
 
       if (tokens["error"] == undefined || tokens["error"] == "") {
         fetch("/token?" + fragment).then(x => {

@@ -1,6 +1,7 @@
 package download
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -20,7 +21,7 @@ type StorageClient interface {
 	AuthUrl() string
 	DownloadUrl(fileId string) string
 	RefreshToken() string
-	OnToken(token string)
+	OnToken(token string) error
 	RedirectUri() string
 	//OnCode(code int)
 	//DownloadFile(fileId, file_name, token string)
@@ -30,10 +31,9 @@ type StorageClient interface {
 type StorageData struct {
 	VendorId      int
 	VendorCode    string
-	Connected     bool
 	Token         string
 	RefreshToken  string
-	TokenValidity int
+	TokenValidity int64
 	Client        StorageClient
 }
 
@@ -72,10 +72,10 @@ func Auth(client StorageClient) error {
 	if !ok {
 		return errors.New("Error retrieving token.")
 	} else {
-		client.OnToken(token)
+		err = client.OnToken(token)
 	}
 
-	return nil
+	return err
 }
 
 func DownloadFile(book *utils.BookDownload) error {
@@ -90,7 +90,7 @@ func DownloadFile(book *utils.BookDownload) error {
 		return errors.New("Client not implemented")
 	}
 
-	if len(data.Token) == 0 {
+	if len(data.Token) == 0 || data.TokenValidity <= time.Now().Unix() {
 		err := Auth(data.Client)
 		if err != nil {
 			return err
@@ -102,8 +102,9 @@ func DownloadFile(book *utils.BookDownload) error {
 	client := &http.Client{}
 	req, err := http.NewRequest("GET", fileurl, nil)
 
-	//log.Println("url ", fileurl)
-	//log.Println("Set token", data.Token)
+	if err != nil {
+		return err
+	}
 
 	req.Header.Add("Authorization", "Bearer "+data.Token)
 
@@ -122,7 +123,7 @@ func DownloadFile(book *utils.BookDownload) error {
 		_, err = io.Copy(out, resp.Body)
 		out.Close()
 
-		log.Println("File downloaded", resp.StatusCode, resp.Status)
+		log.Println("File downloaded", resp.StatusCode, resp.Status, fileurl)
 	} else {
 		return fmt.Errorf("Error file download Code=%d, status=%s", resp.StatusCode, resp.Status)
 	}
@@ -135,7 +136,6 @@ func InitVendorsData() {
 
 	for _, v := range vendors {
 		data := &StorageData{}
-		data.Connected = false
 		data.VendorId = v.Id
 		data.VendorCode = v.VendorCode
 		data.TokenValidity = 0
@@ -145,6 +145,9 @@ func InitVendorsData() {
 		}
 		if v.VendorCode == "MSOD" {
 			data.Client = &OneDriveClient{}
+		}
+		if v.VendorCode == "BOX" {
+			data.Client = &BoxComClient{}
 		}
 		_StorageData[v.VendorCode] = data
 	}
@@ -169,10 +172,11 @@ func OnToken(token, code string) error {
 		if len(s) > len(expiry) && s[:len(expiry)] == expiry {
 			tokens := strings.Split(s, "=")
 			if len(tokens) > 1 {
-				var err error
-				data.TokenValidity, err = strconv.Atoi(tokens[1])
+				tsec, err := strconv.Atoi(tokens[1])
 				if err != nil {
-					data.TokenValidity = 0
+					tsec = 3600
+				} else {
+					data.TokenValidity = time.Now().Add(time.Duration(tsec)).Unix()
 				}
 			}
 		}
@@ -195,14 +199,31 @@ func OnToken(token, code string) error {
 	return nil
 }
 
+func SplitTokens(tokenstr string) map[string]string {
+	splitted1 := strings.Split(tokenstr, "&")
+	tokens := make(map[string]string)
+
+	for _, s := range splitted1 {
+		kval := strings.Split(s, "=")
+		if len(kval) == 2 {
+			tokens[kval[0]] = kval[1]
+		} else if len(kval) == 1 {
+			tokens[kval[0]] = ""
+		}
+	}
+	return tokens
+}
+
 //
 /// HTTP SERVER for API REDIRECTION
 //
 func (handler *myHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	//log.Printf("Got request %v\n", req.URL)
 
-	if req.URL.Path == "/" {
+	if req.URL.Path == "/goog/" || req.URL.Path == "/msod/" {
 
+		// parameters are in url framgment; cannot be read by server
+		// force browser to resend parameters in url query using "download/resp.html"
 		f, err := os.Open("download/resp.html")
 		if err == nil {
 			io.Copy(rw, f)
@@ -212,6 +233,11 @@ func (handler *myHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			close(handler.Ch)
 		}
 
+	}
+	if req.URL.Path == "/box/" {
+		handler.Ch <- req.URL.RawQuery
+		io.WriteString(rw, "Ok")
+		handler.ChNotif <- true
 	}
 	if req.URL.Path == "/token" || req.URL.Path == "/error" {
 		handler.Ch <- req.URL.RawQuery
@@ -230,7 +256,9 @@ func StartServer(ch chan string, url string) {
 	handler.Server = server
 	mux := http.NewServeMux()
 
-	mux.Handle("/", handler)
+	mux.Handle("/goog", handler)
+	mux.Handle("/msod", handler)
+	mux.Handle("/box", handler)
 	mux.Handle("/token", handler)
 	mux.Handle("/error", handler)
 
@@ -268,7 +296,7 @@ func StartServer(ch chan string, url string) {
 // ----------- Google Drive  -----------
 
 func (goog *GoogleClient) RedirectUri() string {
-	return "http://localhost:8080"
+	return "http://localhost:8080/goog/"
 }
 
 func (goog *GoogleClient) AuthUrl() string {
@@ -300,12 +328,12 @@ func (goog *GoogleClient) RefreshToken() string {
 
 }
 
-func (goog *GoogleClient) OnToken(token string) {
+func (goog *GoogleClient) OnToken(token string) error {
 	const code = "GOOG"
 
 	//access_token=ya29.a0ARrdaM-sVhN8knzKB9QXXOgn_Z_TIdbffDWnTapzSH0_zDI7SL-CQjza_tg15MhzScp8HUFcOVF-YbSRm5BiOThl57RsmihjpZcJHj7ERpXdSNXXKy-9-uwRxBpyA0rCDg7-7kDXu4NvouG0W2tob9xZzLoW
 	//&token_type=Bearer&expires_in=3599&scope=https://www.googleapis.com/auth/drive.readonly
-	OnToken(token, code)
+	return OnToken(token, code)
 }
 
 // -----------  OneDrive -----------
@@ -334,19 +362,20 @@ func (od *OneDriveClient) DownloadUrl(fileId string) string {
 }
 
 func (od *OneDriveClient) RedirectUri() string {
-	const REDIRECT = "https://localhost:8080"
+	const REDIRECT = "https://localhost:8080/msod/"
 	return REDIRECT
 }
 
-func (msod *OneDriveClient) OnToken(token string) {
+func (msod *OneDriveClient) OnToken(token string) error {
 	const code = "MSOD"
 
 	//access_token=ya29.a0ARrdaM-sVhN8knzKB9QXXOgn_Z_TIdbffDWnTapzSH0_zDI7SL-CQjza_tg15MhzScp8HUFcOVF-YbSRm5BiOThl57RsmihjpZcJHj7ERpXdSNXXKy-9-uwRxBpyA0rCDg7-7kDXu4NvouG0W2tob9xZzLoW
 	//&token_type=Bearer&expires_in=3599&scope=File.Read
 	err := OnToken(token, code)
 	if err != nil {
-		log.Printf("%v\n", err)
+		return err
 	}
+	return nil
 }
 
 func (msod *OneDriveClient) RefreshToken() string {
@@ -359,7 +388,65 @@ func (bx *BoxComClient) AuthUrl() string {
 	const CLIENT_ID = "2en9g8pt7jgu5kgvyss7qbrxgk783212"
 	const CLIENT_SECRET = "t0nY1UF8AkmKZZp7qPEHWU8i2OG2pZwD"
 	//curl -i -X GET "https://account.box.com/api/oauth2/authorize?response_type=code&client_id=ly1nj6n11vionaie65emwzk575hnnmrk&redirect_uri=http://example.com/auth/callback"
-	const BASE_URL = "https://account.box.com/api/oauth2/authorize?response_type=code&client_id=ly1nj6n11vionaie65emwzk575hnnmrk&redirect_uri=http://example.com/auth/callback"
+	const BASE_URL = "https://account.box.com/api/oauth2/authorize/?response_type=code&client_id=2en9g8pt7jgu5kgvyss7qbrxgk783212&redirect_uri="
 
-	return BASE_URL
+	return BASE_URL + bx.RedirectUri()
+}
+
+func (bx *BoxComClient) DownloadUrl(fileId string) string {
+	const URL = "https://api.box.com/2.0/files/%s/content/"
+	const SCOPE = ""
+
+	return fmt.Sprintf(URL, fileId)
+}
+
+func (bx *BoxComClient) RedirectUri() string {
+	const REDIRECT = "http://localhost:8080/box/"
+	return REDIRECT
+}
+
+func (bx *BoxComClient) OnToken(token string) error {
+	//const code = "BOX"
+	const URL = "https://api.box.com/oauth2/token/"
+	const CLIENT_ID = "2en9g8pt7jgu5kgvyss7qbrxgk783212"
+	const CLIENT_SECRET = "t0nY1UF8AkmKZZp7qPEHWU8i2OG2pZwD"
+
+	kval := SplitTokens(token)
+	code, ok := kval["code"]
+	if len(code) == 0 {
+		return errors.New("Code has 0 length")
+	}
+	if ok {
+		resp, err := http.PostForm(URL, url.Values{"client_id": {CLIENT_ID}, "client_secret": {CLIENT_SECRET}, "code": {code}, "grant_type": {"authorization_code"}})
+
+		if err != nil {
+			return err
+		}
+
+		if resp.StatusCode >= 400 {
+			return fmt.Errorf("POST request for token returned status=%d status code=%s", resp.StatusCode, resp.Status)
+		}
+
+		type Response_ struct {
+			AccesToken   string `json:"access_token"`
+			RefreshToken string `json:"refresh_token"`
+			ExpiresIn    int64  `json:"expires_in"`
+		}
+		body := &Response_{}
+		err = json.NewDecoder(resp.Body).Decode(body)
+		if err != nil {
+			return err
+		}
+		_StorageData["BOX"].Token = body.AccesToken
+		_StorageData["BOX"].RefreshToken = body.RefreshToken
+		_StorageData["BOX"].TokenValidity = time.Now().Add(time.Duration(body.ExpiresIn)).Unix()
+
+	} else {
+		return errors.New("Token \"code\" expected in url paramters")
+	}
+	return nil
+}
+
+func (bx *BoxComClient) RefreshToken() string {
+	return _StorageData["BOX"].RefreshToken
 }
