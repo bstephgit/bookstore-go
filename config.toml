@@ -1,8 +1,24 @@
 
-url="https://vps665513.ovh.net"
+[Dirs]
 workdir="~/temp/bookstore"
+download="~/documents/books"
 [Database]
 host="192.168.0.45"
 user="guest"
-password="aldu"
+password="password"
+
+[Storage.Google]
+ClientId="76824108658-qopibc57hedf4k4he7rlateis2bkoigv.apps.googleusercontent.com"
+Secret="444KL-z0e_JZR8_PBu_vXvKH"
+RedirectUri="http://localhost:8080/goog/"
+
+[Storage.OneDrive]
+ClientId="ffd664c2-aba8-4284-ba2e-2300b5320387"
+Secret="N/A"
+RedirectUri="https://localhost:8080/msod/"
+
+[Storage.Box]
+ClientId="2en9g8pt7jgu5kgvyss7qbrxgk783212"
+Secret="t0nY1UF8AkmKZZp7qPEHWU8i2OG2pZwD"
+RedirectUri="http://localhost:8080/box/"
 
