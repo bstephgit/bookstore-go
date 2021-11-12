@@ -10,10 +10,12 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"path"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/bookstore-go/config"
 	"github.com/bookstore-go/utils"
 )
 
@@ -42,6 +44,7 @@ var _StorageData map[string]*StorageData
 type GoogleClient struct{}
 type OneDriveClient struct{}
 type BoxComClient struct{}
+type PCloudClient struct{}
 
 type myHandler struct {
 	Ch      chan<- string
@@ -110,8 +113,6 @@ func DownloadFile(book *utils.BookDownload) error {
 
 	resp, err := client.Do(req)
 
-	log.Printf("%v\n%v\n%v\n", req, resp, resp.Body)
-
 	if err != nil {
 		log.Printf("%v\n", err)
 		return err
@@ -119,11 +120,19 @@ func DownloadFile(book *utils.BookDownload) error {
 
 	if resp.StatusCode >= 200 && resp.StatusCode < 400 {
 
-		out, _ := os.Create(book.FileName)
+		file_path := path.Join(config.GetConfig().Dirs.Download, book.FileName)
+		out, _ := os.Create(file_path)
 		_, err = io.Copy(out, resp.Body)
+
+		defer resp.Body.Close()
+
+		if err != nil {
+			return err
+		}
+
 		out.Close()
 
-		log.Println("File downloaded", resp.StatusCode, resp.Status, fileurl)
+		log.Println("File downloaded", file_path)
 	} else {
 		return fmt.Errorf("Error file download Code=%d, status=%s", resp.StatusCode, resp.Status)
 	}
@@ -296,13 +305,12 @@ func StartServer(ch chan string, url string) {
 // ----------- Google Drive  -----------
 
 func (goog *GoogleClient) RedirectUri() string {
-	return "http://localhost:8080/goog/"
+	return config.GetConfig().Storage.Google.RedirectUri
 }
 
 func (goog *GoogleClient) AuthUrl() string {
 	const BaseUrl = "https://accounts.google.com/o/oauth2/v2/auth"
-	const ClientId = "76824108658-qopibc57hedf4k4he7rlateis2bkoigv.apps.googleusercontent.com"
-	const ClientSecret = "444KL-z0e_JZR8_PBu_vXvKH"
+	ClientId := config.GetConfig().Storage.Google.ClientId
 
 	redirect_uri := goog.RedirectUri()
 
@@ -342,7 +350,7 @@ func (od *OneDriveClient) AuthUrl() string {
 	//"https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id={client_id}&scope={scope}&response_type=token&redirect_uri={redirect_uri}"
 	const BASE_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=%s&scope=%s&response_type=token&redirect_uri=%s"
 
-	const CLIENT_ID = "ffd664c2-aba8-4284-ba2e-2300b5320387"
+	CLIENT_ID := config.GetConfig().Storage.OneDrive.ClientId
 	const SCOPE = "Files.Read"
 	//"https://myapp.com/auth-redirect#access_token=EwC...EB&authentication_token=eyJ...3EM&token_type=bearer&expires_in=3600&scope=onedrive.readwrite&user_id=3626...1d"
 	url := fmt.Sprintf(BASE_URL, CLIENT_ID, SCOPE, url.QueryEscape(od.RedirectUri()))
@@ -362,8 +370,7 @@ func (od *OneDriveClient) DownloadUrl(fileId string) string {
 }
 
 func (od *OneDriveClient) RedirectUri() string {
-	const REDIRECT = "https://localhost:8080/msod/"
-	return REDIRECT
+	return config.GetConfig().Storage.OneDrive.RedirectUri
 }
 
 func (msod *OneDriveClient) OnToken(token string) error {
@@ -385,31 +392,27 @@ func (msod *OneDriveClient) RefreshToken() string {
 // ----------- BOX.COM -----------
 
 func (bx *BoxComClient) AuthUrl() string {
-	const CLIENT_ID = "2en9g8pt7jgu5kgvyss7qbrxgk783212"
-	const CLIENT_SECRET = "t0nY1UF8AkmKZZp7qPEHWU8i2OG2pZwD"
+	CLIENT_ID := config.GetConfig().Storage.Box.ClientId
 	//curl -i -X GET "https://account.box.com/api/oauth2/authorize?response_type=code&client_id=ly1nj6n11vionaie65emwzk575hnnmrk&redirect_uri=http://example.com/auth/callback"
-	const BASE_URL = "https://account.box.com/api/oauth2/authorize/?response_type=code&client_id=2en9g8pt7jgu5kgvyss7qbrxgk783212&redirect_uri="
+	const BASE_URL = "https://account.box.com/api/oauth2/authorize/?response_type=code&client_id=%s&redirect_uri=%s"
 
-	return BASE_URL + bx.RedirectUri()
+	return fmt.Sprintf(BASE_URL, CLIENT_ID, bx.RedirectUri())
 }
 
 func (bx *BoxComClient) DownloadUrl(fileId string) string {
 	const URL = "https://api.box.com/2.0/files/%s/content/"
-	const SCOPE = ""
-
 	return fmt.Sprintf(URL, fileId)
 }
 
 func (bx *BoxComClient) RedirectUri() string {
-	const REDIRECT = "http://localhost:8080/box/"
-	return REDIRECT
+	return config.GetConfig().Storage.Box.RedirectUri
 }
 
 func (bx *BoxComClient) OnToken(token string) error {
 	//const code = "BOX"
 	const URL = "https://api.box.com/oauth2/token/"
-	const CLIENT_ID = "2en9g8pt7jgu5kgvyss7qbrxgk783212"
-	const CLIENT_SECRET = "t0nY1UF8AkmKZZp7qPEHWU8i2OG2pZwD"
+	CLIENT_ID := config.GetConfig().Storage.Box.ClientId
+	CLIENT_SECRET := config.GetConfig().Storage.Box.Secret
 
 	kval := SplitTokens(token)
 	code, ok := kval["code"]
@@ -449,4 +452,31 @@ func (bx *BoxComClient) OnToken(token string) error {
 
 func (bx *BoxComClient) RefreshToken() string {
 	return _StorageData["BOX"].RefreshToken
+}
+
+// ----------- PCLOUD -----------
+
+func (pc *PCloudClient) AuthUrl() string {
+	const URL = ""
+
+	return URL
+}
+
+func (pc *PCloudClient) DownloadUrl(fileId string) string {
+	const URL = ""
+	return URL
+}
+
+func (p *PCloudClient) RedirectUri() string {
+	const REDIRECT = ""
+	return REDIRECT
+}
+
+func (p *PCloudClient) OnToken(token string) error {
+
+	return nil
+}
+
+func (pc *PCloudClient) RefreshToken() string {
+	return "N/A"
 }

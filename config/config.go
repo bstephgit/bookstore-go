@@ -3,6 +3,10 @@ package config
 import (
 	"flag"
 	"fmt"
+	"log"
+	"os"
+	"path"
+	"strings"
 
 	"github.com/BurntSushi/toml"
 	"github.com/bookstore-go/utils"
@@ -47,6 +51,19 @@ func LoadConfig() error {
 	GetConfig = func() Config {
 		return conf
 	}
+
+	conf.Dirs.Workdir = ExpandPath(conf.Dirs.Workdir)
+	err = CreateFolderIfNotExist(conf.Dirs.Workdir)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	conf.Dirs.Download = ExpandPath(conf.Dirs.Download)
+	err = CreateFolderIfNotExist(conf.Dirs.Download)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	return nil
 }
 
@@ -63,4 +80,41 @@ func ProcessArgs() error {
 	flag.Parse()
 
 	return nil
+}
+
+func ExpandPath(dirpath string) string {
+
+	if dirpath[0:2] == "~/" {
+		return path.Join(os.Getenv("HOME"), dirpath[2:])
+
+	} else if dirpath[0] != '/' {
+		return path.Join(os.Getenv("PWD"), dirpath)
+	}
+
+	return dirpath
+}
+
+func CreateFolderIfNotExist(path string) error {
+
+	_, err := os.Stat(path)
+
+	if os.IsNotExist(err) {
+		folders := strings.Split(path, "/")
+		built_path := ""
+
+		for _, f := range folders {
+			built_path += f + "/"
+			_, err = os.Stat(built_path)
+			if os.IsNotExist(err) {
+				err = os.Mkdir(built_path, 0700)
+				if err != nil {
+					return err
+				}
+			}
+		}
+	} else {
+		err = nil
+	}
+
+	return err
 }

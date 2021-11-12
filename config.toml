@@ -1,11 +1,12 @@
 
 [Dirs]
-workdir="~/temp/bookstore"
-download="~/documents/books"
+workdir="~/temp/bookstore/test"
+download="~/Documents/books"
+
 [Database]
 host="192.168.0.45"
 user="guest"
-password="password"
+password="aldu"
 
 [Storage.Google]
 ClientId="76824108658-qopibc57hedf4k4he7rlateis2bkoigv.apps.googleusercontent.com"
