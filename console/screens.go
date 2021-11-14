@@ -1,8 +1,10 @@
-package utils
+package console
 
 import (
 	"strings"
 
+	"github.com/bookstore-go/download"
+	"github.com/bookstore-go/utils"
 	"github.com/rthornton128/goncurses"
 )
 
@@ -75,6 +77,7 @@ func (menu *MenuScreen) OnKey(key goncurses.Key) {
 		menu.Tty.PrintMessage("Get book info")
 	} else if key == 'd' {
 		menu.Tty.PrintMessage("Download book")
+
 	} else {
 		menu.Tty.PrintMessage("Unrecognized command %d\n", key)
 	}
@@ -87,7 +90,7 @@ func (menu *MenuScreen) OnRefresh(Lines, Cols int) {
 }
 
 type SubjectsScreen struct {
-	Subjects []Subject
+	Subjects []utils.Subject
 	Tty      *Terminal
 }
 
@@ -111,7 +114,7 @@ func (subscr *SubjectsScreen) PrintItem(index int) {
 
 func (subscr *SubjectsScreen) Init(tty *Terminal, ctx *ScreenContext) {
 
-	subjects, err := GetSubjects()
+	subjects, err := utils.GetSubjects()
 	if err != nil {
 		tty.Printf("%v", err)
 	}
@@ -177,9 +180,11 @@ func (subscr *SubjectsScreen) OnKey(key goncurses.Key) {
 	case goncurses.KEY_RETURN:
 		ctx := subscr.Tty.CurrentContext()
 		index := (ctx.CursorCol * ctx.LogicLines) + ctx.CursorLine + ctx.Scroll
-		sb := &SubjectBooks{}
-		sb.Sub = &subscr.Subjects[index]
-		subscr.Tty.NewScreen(sb)
+		if index < len(subscr.Subjects) {
+			sb := &SubjectBooks{}
+			sb.Sub = &subscr.Subjects[index]
+			subscr.Tty.NewScreen(sb)
+		}
 	}
 
 }
@@ -192,13 +197,13 @@ func (subscr *SubjectsScreen) OnRefresh(Lines, Cols int) {
 
 type SubjectBooks struct {
 	Tty       *Terminal
-	BookLines []BookLine
-	Sub       *Subject
+	BookLines []utils.BookLine
+	Sub       *utils.Subject
 }
 
 func (subb *SubjectBooks) Init(t *Terminal, ctx *ScreenContext) {
 
-	subb.BookLines, _ = GetSubjectBooks(int(subb.Sub.Id))
+	subb.BookLines, _ = utils.GetSubjectBooks(int(subb.Sub.Id))
 	subb.Tty = t
 
 	ctx.LogicLines = len(subb.BookLines)
@@ -259,14 +264,14 @@ func (subb *SubjectBooks) OnKey(k goncurses.Key) {
 type BookScreen struct {
 	Tty     *Terminal
 	BookId  int
-	BookObj *Book
+	BookObj *utils.Book
 	Err     error
 	Text    string
 }
 
 func (bookscr *BookScreen) Init(t *Terminal, ctx *ScreenContext) {
 	bookscr.Tty = t
-	bookscr.BookObj, bookscr.Err = GetBook(bookscr.BookId)
+	bookscr.BookObj, bookscr.Err = utils.GetBook(bookscr.BookId)
 
 	bookscr.Text = t.FormatText(bookscr.BookObj.Description)
 
@@ -411,9 +416,75 @@ func (bookscr *BookScreen) OnKey(k goncurses.Key) {
 	switch k {
 	case 'q':
 		bookscr.Tty.EndRead()
+	case 'd':
+		dl := &DownloadScreen{}
+		dl.BookId = bookscr.BookId
+		bookscr.Tty.NewScreen(dl)
 	case goncurses.KEY_PAGEDOWN:
 		bookscr.Tty.ScrollScr(bookscr.Tty.Lines)
 	case goncurses.KEY_PAGEUP:
 		bookscr.Tty.ScrollScr(-bookscr.Tty.Lines)
 	}
+}
+
+type DownloadScreen struct {
+	Tty    *Terminal
+	BookId int
+	BookDl *utils.BookDownload
+	Done   bool
+}
+
+func (ds *DownloadScreen) Init(tty *Terminal, ctx *ScreenContext) {
+	ds.Tty = tty
+	ds.BookDl, _ = utils.GetDownloadInfo(ds.BookId)
+	tty.ClearScreen()
+	ds.Done = false
+}
+
+func (ds *DownloadScreen) Run() {
+	ds.OnRefresh(0, 0)
+	ds.Tty.BeginRead()
+}
+
+func (ds *DownloadScreen) OnKey(key goncurses.Key) {
+	switch key {
+	case 'n':
+		ds.Tty.EndRead()
+	case 'y':
+		err := download.DownloadFile(ds.BookDl)
+		//ds.Tty.EndRead()
+		if err != nil {
+			ds.Tty.CursorAddress(7, 0)
+			ds.Tty.Printf("%v\n", err)
+		}
+		ds.Done = true
+		ds.Tty.Println("Press any key to return to book page")
+	default:
+		if ds.Done {
+			ds.Tty.EndRead()
+		}
+	}
+
+}
+
+func (ds *DownloadScreen) OnScroll(y int) {
+	// nop
+}
+
+func (ds *DownloadScreen) OnRefresh(lines, cols int) {
+	ds.Tty.CursorAddress(0, 0)
+	ds.Tty.Printf("File:")
+	ds.Tty.CursorAddress(0, 30)
+	ds.Tty.Printf("%s", ds.BookDl.FileName)
+	ds.Tty.CursorAddress(1, 0)
+	ds.Tty.Printf("Size:")
+	ds.Tty.CursorAddress(1, 30)
+	ds.Tty.Printf("%d", ds.BookDl.FileSize)
+	ds.Tty.CursorAddress(2, 0)
+	ds.Tty.Printf("Storage vendor:")
+	ds.Tty.CursorAddress(2, 30)
+	ds.Tty.Printf("%s (%s)", ds.BookDl.Vendor, ds.BookDl.VendorCode)
+
+	ds.Tty.CursorAddress(4, 0)
+	ds.Tty.Println("Download book? Y/n")
 }

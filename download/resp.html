@@ -1,0 +1,71 @@
+
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+  <meta charset="utf-8">
+  <meta content="width=300, initial-scale=1" name="viewport">
+
+  </head>
+  <body>
+
+  <script type="text/javascript">
+
+      function closeWindow() {
+        window.close();
+      }
+      var url = new URL(window.location);
+      var fragment = url.hash.substr(1);
+
+      document.write("Sending token<br><h5>" + fragment + "</h5>");
+
+      var reg = /\&?([a-zA-z0-9_\+\.' "\-]+)=([a-zA-z0-9_\+\.' "\-]+)\&?/g;
+      res = fragment.matchAll(reg);
+      tokens = {}
+
+      item = res.next()
+      while (!item.done) {
+        if (Array.isArray(item.value)) {
+
+          if (item.value.length > 2) {
+              tokens[item.value[1]] = item.value[2]
+          }
+          else {
+            tokens[item.value[0]] = item.value[1] || "";
+          }
+
+        }
+        else {
+          tokens[item.value] = ""
+        }
+        item = res.next()
+      }
+
+      console.log(tokens);      
+
+      if (tokens["error"] == undefined || tokens["error"] == "") {
+        fetch("/token?" + fragment).then(x => {
+          document.write("<h4>Token sent successfully</h4><p><button on-click='closeWindow()' id=\"close_button\">Close</button><p>" +
+            "<label>"+tokens["access_token"]+"</label>");
+          //document.getElementById("close_button").style.visibility = "visible";
+        }).catch(e => {
+          console.error("error sending token", e);
+        });
+      }
+      else {
+        document.write("<p>Error found:<br><ul>");
+        document.write("<li>error: <b>" + tokens["error"].replaceAll("+", " ") + "</b></li>");
+        delete tokens["error"];
+
+        for (e in tokens) {
+          if (e.indexOf("error") > -1){
+              document.write("<li>" + e + ": <b>" + tokens[e].replaceAll("+", " ") + "</b></li>");
+
+          }
+        }
+        document.write("</ul>");
+        fetch("/error?" + fragment);
+      }
+
+  </script>
+  </body>
+</html>

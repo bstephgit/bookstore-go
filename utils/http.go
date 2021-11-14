@@ -20,6 +20,7 @@ type IHttpRequest interface {
 	Head() IHttpResponse
 	Error() error
 	Url() string
+	AddHeaders(map[string]string)
 }
 type IHttpRequestFactory interface {
 	CreateRequest(url_str string) IHttpRequest
@@ -81,6 +82,12 @@ func (req *HttpRequest) Error() error {
 
 func (req *HttpRequest) Url() string {
 	return req.Url_
+}
+
+func (req *HttpRequest) AddHeaders(headers map[string]string) {
+	for k, v := range headers {
+		req.Headers_[k] = v
+	}
 }
 
 type HttpRequestFactoryImpl struct {
