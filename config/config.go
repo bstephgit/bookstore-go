@@ -29,6 +29,10 @@ type Config struct {
 		Workdir  string
 		Download string
 	}
+	Ssl struct {
+		Key    string
+		PubKey string `toml:"pub-key"`
+	}
 	Storage struct {
 		Google   FileStore
 		OneDrive FileStore

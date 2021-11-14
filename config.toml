@@ -8,6 +8,10 @@ host="192.168.0.45"
 user="guest"
 password="aldu"
 
+[Ssl]
+key="download/localhost.key"
+pub-key="download/localhost.cert"
+
 [Storage.Google]
 ClientId="76824108658-qopibc57hedf4k4he7rlateis2bkoigv.apps.googleusercontent.com"
 Secret="444KL-z0e_JZR8_PBu_vXvKH"

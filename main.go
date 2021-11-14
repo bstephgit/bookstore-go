@@ -17,7 +17,7 @@ func main() {
 	err := config.LoadConfig()
 
 	if err != nil {
-		panic(err)
+		panic("Error loading configuration: " + err.Error())
 	}
 
 	err = utils.DbConnect(config.GetConfig().Database)

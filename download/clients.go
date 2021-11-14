@@ -287,14 +287,10 @@ func StartServer(ch chan string, url string) {
 		defer server.Close()
 	}()
 
-	var err error
 	if url[:5] == "https" {
-		err = server.ListenAndServeTLS("download/localhost.cert", "download/localhost.key")
+		server.ListenAndServeTLS(config.GetConfig().Ssl.PubKey, config.GetConfig().Ssl.Key)
 	} else {
-		err = server.ListenAndServe()
-	}
-	if err != nil {
-		fmt.Printf("%v\n", err)
+		server.ListenAndServe()
 	}
 }
 
