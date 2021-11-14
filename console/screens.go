@@ -180,9 +180,11 @@ func (subscr *SubjectsScreen) OnKey(key goncurses.Key) {
 	case goncurses.KEY_RETURN:
 		ctx := subscr.Tty.CurrentContext()
 		index := (ctx.CursorCol * ctx.LogicLines) + ctx.CursorLine + ctx.Scroll
-		sb := &SubjectBooks{}
-		sb.Sub = &subscr.Subjects[index]
-		subscr.Tty.NewScreen(sb)
+		if index < len(subscr.Subjects) {
+			sb := &SubjectBooks{}
+			sb.Sub = &subscr.Subjects[index]
+			subscr.Tty.NewScreen(sb)
+		}
 	}
 
 }
