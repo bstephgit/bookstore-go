@@ -18,12 +18,12 @@ func NewTerminal() *Terminal {
 	goncurses.Init()
 
 	goncurses.CBreak(true)
+	goncurses.Cursor(0)
 
 	term := Terminal{0, 0, []*ScreenContext{}, nil}
 
 	term.Lines, term.Cols = GetScreenSize()
 
-	//win := goncurses.StdScr().Derived(term.Lines, term.Cols, 0, 0)
 	win, _ := goncurses.NewWindow(term.Lines, term.Cols, 0, 0)
 
 	win.Keypad(true)
@@ -252,6 +252,19 @@ func (t *Terminal) SaveCursorPos() (int, int) {
 	ctx.CursorLine = y / ctx.LineSize
 	ctx.CursorCol = x / ctx.ColSize
 	return y, x
+}
+
+func (t *Terminal) Highlight(line, col int, text string, on bool) {
+
+	w := t.GetWindow()
+	ctx := t.CurrentContext()
+	if on {
+		w.AttrOn(goncurses.A_REVERSE)
+	} else {
+		w.AttrOff(goncurses.A_REVERSE)
+	}
+	w.MovePrint(line*ctx.LineSize, col*ctx.ColSize, text)
+	w.AttrOff(goncurses.A_REVERSE)
 }
 
 func TerminalLoop() {

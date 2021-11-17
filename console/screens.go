@@ -139,6 +139,9 @@ func (subscr *SubjectsScreen) Init(tty *Terminal, ctx *ScreenContext) {
 func (subscr *SubjectsScreen) Run() {
 
 	subscr.OnRefresh(0, 0)
+	if len(subscr.Subjects) > 0 {
+		subscr.Tty.Highlight(0, 0, subscr.Subjects[0].Name, true)
+	}
 	subscr.Tty.BeginRead()
 }
 
@@ -164,6 +167,12 @@ func (subscr *SubjectsScreen) OnScroll(y int) {
 }
 
 func (subscr *SubjectsScreen) OnKey(key goncurses.Key) {
+	ctx := subscr.Tty.CurrentContext()
+	index := (ctx.CursorCol * ctx.LogicLines) + ctx.CursorLine + ctx.Scroll
+	if index < len(subscr.Subjects) {
+		subscr.Tty.Highlight(ctx.CursorLine, ctx.CursorCol, subscr.Subjects[index].Name, false)
+	}
+
 	switch key {
 	case 'q':
 		subscr.Tty.EndRead()
@@ -186,7 +195,10 @@ func (subscr *SubjectsScreen) OnKey(key goncurses.Key) {
 			subscr.Tty.NewScreen(sb)
 		}
 	}
-
+	index = (ctx.CursorCol * ctx.LogicLines) + ctx.CursorLine + ctx.Scroll
+	if index < len(subscr.Subjects) {
+		subscr.Tty.Highlight(ctx.CursorLine, ctx.CursorCol, subscr.Subjects[index].Name, true)
+	}
 }
 
 func (subscr *SubjectsScreen) OnRefresh(Lines, Cols int) {
@@ -214,6 +226,9 @@ func (subb *SubjectBooks) Init(t *Terminal, ctx *ScreenContext) {
 func (subb *SubjectBooks) Run() {
 	subb.Tty.CursorAddress(0, 0)
 	subb.OnRefresh(0, 0)
+	if len(subb.BookLines) > 0 {
+		subb.Tty.Highlight(0, 0, subb.BookLines[0].Title, true)
+	}
 	subb.Tty.BeginRead()
 }
 
@@ -240,6 +255,10 @@ func (subb *SubjectBooks) OnScroll(y int) {
 }
 
 func (subb *SubjectBooks) OnKey(k goncurses.Key) {
+	ctx := subb.Tty.CurrentContext()
+	index := ctx.CursorLine + ctx.Scroll
+	subb.Tty.Highlight(ctx.CursorLine, 0, subb.BookLines[index].Title, false)
+
 	switch k {
 	case goncurses.KEY_ESC:
 	case 'q':
@@ -259,6 +278,8 @@ func (subb *SubjectBooks) OnKey(k goncurses.Key) {
 			subb.Tty.NewScreen(bs)
 		}
 	}
+	index = ctx.CursorLine + ctx.Scroll
+	subb.Tty.Highlight(ctx.CursorLine, 0, subb.BookLines[index].Title, true)
 }
 
 type BookScreen struct {

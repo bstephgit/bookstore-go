@@ -256,7 +256,7 @@ func DecryptFile(password, inputfile string, sb *strings.Builder) error {
 		return err
 	}
 
-	log.Println("Create output file...")
+	//log.Println("Create output file...")
 	sb.Write(dst)
 
 	return err
