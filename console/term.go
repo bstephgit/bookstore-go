@@ -145,7 +145,6 @@ func (t *Terminal) NewScreen(scr Screen) {
 	if ctx != nil {
 		w.Resize(ctx.LogicLines*ctx.LineSize, t.Cols*ctx.ColSize)
 		ctx.CurrentScreen.OnRefresh(0, 0)
-		t.ScrollScr(ctx.Scroll)
 		t.MoveCursorTo(ctx.CursorLine, ctx.CursorCol)
 	}
 }
@@ -196,16 +195,21 @@ func (t *Terminal) MoveNextLine() {
 
 	ctx := t.CurrentContext()
 
-	next_line_scr := (ctx.CursorLine + 1) * ctx.LineSize
+	if (ctx.CursorLine + 1) < ctx.LogicLines {
+		next_line_scr := (ctx.CursorLine + 1) * ctx.LineSize
 
-	// if cursor not at bottom of screen
-	if next_line_scr < t.Lines {
-		ctx.CursorLine += 1
-		t.MoveCursorTo(ctx.CursorLine*ctx.LineSize, ctx.CursorCol*ctx.ColSize)
-	} else if ctx.CursorLine+ctx.Scroll+1 < ctx.LogicLines {
-		ctx.Scroll += 1
-		t.GetWindow().Scroll(1)
-		ctx.CurrentScreen.OnScroll(1)
+		// if cursor not at bottom of screen
+		if next_line_scr < t.Lines {
+
+			ctx.CursorLine += 1
+			t.MoveCursorTo(ctx.CursorLine*ctx.LineSize, ctx.CursorCol*ctx.ColSize)
+
+		} else if ctx.CursorLine+ctx.Scroll+1 < ctx.LogicLines {
+
+			ctx.Scroll += 1
+			t.GetWindow().Scroll(1)
+			ctx.CurrentScreen.OnScroll(1)
+		}
 	}
 
 }

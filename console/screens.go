@@ -96,20 +96,25 @@ type SubjectsScreen struct {
 
 func (subscr *SubjectsScreen) PrintSubjects() {
 	ctx := subscr.Tty.CurrentContext()
-	for i := range subscr.Subjects {
+	for i := 0; i < ctx.LogicCols; i += 1 {
 
-		line := i % ctx.LogicLines
-		col := i / ctx.LogicLines
-		subscr.Tty.CursorAddress(line, col)
+		for j := 0; j < subscr.Tty.Lines; j += 1 {
 
-		subscr.PrintItem(i)
+			subscr.Tty.CursorAddress(j, i)
+
+			index := i*ctx.LogicLines + j + ctx.Scroll
+			subscr.PrintItem(index)
+		}
+
 		//tty.Printf("%s (%d)", subscr.Subjects[i].Name, subscr.Subjects[i].Id)
 		//tty.Printf("(%d[%d,%d])", i, line, col)
 	}
 }
 
 func (subscr *SubjectsScreen) PrintItem(index int) {
-	subscr.Tty.Printf("%s (%d)", subscr.Subjects[index].Name, subscr.Subjects[index].Id)
+	if index < len(subscr.Subjects) {
+		subscr.Tty.Printf("%s (%d)", subscr.Subjects[index].Name, subscr.Subjects[index].Id)
+	}
 }
 
 func (subscr *SubjectsScreen) Init(tty *Terminal, ctx *ScreenContext) {
@@ -148,22 +153,27 @@ func (subscr *SubjectsScreen) Run() {
 func (subscr *SubjectsScreen) OnScroll(y int) {
 
 	ctx := subscr.Tty.CurrentContext()
+	var offset int
 	if y < 0 {
 		y = -y
-
-		line := subscr.Tty.CurrentContext().CursorLine
-		col := subscr.Tty.CurrentContext().CursorCol
-
-		for i := 0; i < y; i += 1 {
-			for j := 0; j < ctx.LogicCols; j += 1 {
-				subscr.Tty.CursorAddress(i, j)
-				index := (ctx.LogicLines * j) + ctx.Scroll + i
-				subscr.PrintItem(index)
-			}
-		}
-		subscr.Tty.CursorAddress(line, col)
-
+		offset = 0
+	} else {
+		offset = subscr.Tty.Lines - y
+		y = subscr.Tty.Lines
 	}
+
+	line := subscr.Tty.CurrentContext().CursorLine
+	col := subscr.Tty.CurrentContext().CursorCol
+
+	for i := offset; i < y; i += 1 {
+		for j := 0; j < ctx.LogicCols; j += 1 {
+			subscr.Tty.CursorAddress(i, j)
+			index := (ctx.LogicLines * j) + ctx.Scroll + i
+			subscr.PrintItem(index)
+		}
+	}
+	subscr.Tty.CursorAddress(line, col)
+
 }
 
 func (subscr *SubjectsScreen) OnKey(key goncurses.Key) {
@@ -233,24 +243,33 @@ func (subb *SubjectBooks) Run() {
 }
 
 func (subb *SubjectBooks) OnRefresh(lines, cols int) {
-	for line, book := range subb.BookLines {
-		subb.Tty.CursorAddress(line, 0)
-		subb.Tty.Printf("%s", book.Title)
+
+	scroll := subb.Tty.CurrentContext().Scroll
+	lines = subb.Tty.Lines / subb.Tty.CurrentContext().LineSize
+	if (scroll + lines) > subb.Tty.CurrentContext().LogicLines {
+		lines = subb.Tty.CurrentContext().LogicLines - scroll
 	}
-	subb.Tty.CursorAddress(0, 0)
+	for line := 0; line < lines; line += 1 {
+		subb.Tty.CursorAddress(line, 0)
+		subb.Tty.Printf("%s", subb.BookLines[scroll+line].Title)
+	}
 }
 
 func (subb *SubjectBooks) OnScroll(y int) {
+
+	var line int
 	if y < 0 {
 		y = -y
-		line := subb.Tty.CurrentContext().CursorLine
-		subb.Tty.CursorAddress(0, 0)
-		for index := 0; index < y; index += 1 {
-			subb.Tty.CursorAddress(index, 0)
-			book_index := index + subb.Tty.CurrentContext().Scroll
-			subb.Tty.Printf("%s", subb.BookLines[book_index].Title)
-		}
+		line = 0
+	} else {
+		line = subb.Tty.Lines - y
+		y = subb.Tty.Lines
+	}
+
+	for ; line < y; line += 1 {
 		subb.Tty.CursorAddress(line, 0)
+		index := line + subb.Tty.CurrentContext().Scroll
+		subb.Tty.Printf("%s", subb.BookLines[index].Title)
 	}
 }
 
@@ -269,8 +288,14 @@ func (subb *SubjectBooks) OnKey(k goncurses.Key) {
 		subb.Tty.MovePrevLine()
 	case goncurses.KEY_PAGEDOWN:
 		subb.Tty.ScrollScr(subb.Tty.Lines)
+		if ctx.Scroll+subb.Tty.Lines >= len(subb.BookLines) {
+			ctx.CursorLine = subb.Tty.Lines - 1
+		}
 	case goncurses.KEY_PAGEUP:
 		subb.Tty.ScrollScr(-subb.Tty.Lines)
+		if ctx.Scroll == 0 {
+			ctx.CursorLine = 0
+		}
 	case goncurses.KEY_RETURN:
 		line := subb.Tty.CurrentContext().CursorLine + subb.Tty.CurrentContext().Scroll
 		if line >= 0 && line < len(subb.BookLines) {
@@ -473,12 +498,12 @@ func (ds *DownloadScreen) OnKey(key goncurses.Key) {
 		ds.Tty.EndRead()
 	case 'y':
 		err := download.DownloadFile(ds.BookDl)
-		//ds.Tty.EndRead()
 		if err != nil {
 			ds.Tty.CursorAddress(7, 0)
 			ds.Tty.Printf("%v\n", err)
 		}
 		ds.Done = true
+		ds.Tty.MoveNextLine()
 		ds.Tty.Println("Press any key to return to book page")
 	default:
 		if ds.Done {
@@ -508,4 +533,5 @@ func (ds *DownloadScreen) OnRefresh(lines, cols int) {
 
 	ds.Tty.CursorAddress(4, 0)
 	ds.Tty.Println("Download book? Y/n")
+	ds.Tty.MoveNextLine()
 }
